@@ -1,0 +1,51 @@
+@model SolicitudCredito
+@{
+    ViewData["Title"] = "Detalle de Solicitud";
+}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="h3">Detalle de Solicitud #@Model.Id</h1>
+        <a asp-action="MisSolicitudes" class="btn btn-link px-0">← Volver a Mis Solicitudes</a>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Información de la Solicitud</strong>
+        <span class="badge @(Model.Estado == EstadoSolicitud.Pendiente
+            ? "bg-warning text-dark"
+            : Model.Estado == EstadoSolicitud.Aprobado
+                ? "bg-success"
+                : "bg-danger")">
+            @Model.Estado
+        </span>
+    </div>
+    <div class="card-body">
+        <dl class="row mb-0">
+            <dt class="col-sm-4">Número de Solicitud</dt>
+            <dd class="col-sm-8">@Model.Id</dd>
+
+            <dt class="col-sm-4">Monto Solicitado</dt>
+            <dd class="col-sm-8">@Model.MontoSolicitado.ToString("C")</dd>
+
+            <dt class="col-sm-4">Fecha de Solicitud</dt>
+            <dd class="col-sm-8">@Model.FechaSolicitud.ToString("dd/MM/yyyy HH:mm")</dd>
+
+            <dt class="col-sm-4">Estado</dt>
+            <dd class="col-sm-8">@Model.Estado</dd>
+
+            @if (Model.Estado == EstadoSolicitud.Rechazado)
+            {
+                <dt class="col-sm-4">Motivo de Rechazo</dt>
+                <dd class="col-sm-8">@(Model.MotivoRechazo ?? "No especificado")</dd>
+            }
+
+            @if (Model.Cliente is not null)
+            {
+                <dt class="col-sm-4">Ingresos Mensuales del Cliente</dt>
+                <dd class="col-sm-8">@Model.Cliente.IngresosMensuales.ToString("C")</dd>
+            }
+        </dl>
+    </div>
+</div>
