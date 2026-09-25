@@ -140,6 +140,8 @@ public class SolicitudesController : Controller
             return View(viewModel);
         }
 
+        viewModel.ClienteId = cliente.Id;
+
         var query = _context.SolicitudesCredito.AsNoTracking()
             .Include(s => s.Cliente)
             .Where(s => s.ClienteId == cliente.Id);
