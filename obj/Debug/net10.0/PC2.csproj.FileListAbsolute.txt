@@ -280,3 +280,6 @@ C:\Programacion I\PC2\obj\Debug\net10.0\compressed\nezrqnk58p-{0}-muycvpuwrr-muy
 C:\Programacion I\PC2\obj\Debug\net10.0\compressed\v0zgfp0y55-{0}-87fc7y1x7t-87fc7y1x7t.gz
 C:\Programacion I\PC2\obj\Debug\net10.0\compressed\yfc7ypekbg-{0}-mlv21k5csn-mlv21k5csn.gz
 C:\Programacion I\PC2\obj\Debug\net10.0\PC2.csproj.Up2Date
+C:\Programacion I\PC2\bin\Debug\net10.0\Microsoft.Extensions.Caching.StackExchangeRedis.dll
+C:\Programacion I\PC2\bin\Debug\net10.0\Pipelines.Sockets.Unofficial.dll
+C:\Programacion I\PC2\bin\Debug\net10.0\StackExchange.Redis.dll
