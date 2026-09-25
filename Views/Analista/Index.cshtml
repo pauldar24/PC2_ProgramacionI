@@ -1,0 +1,114 @@
+@model List<SolicitudCredito>
+@{
+    ViewData["Title"] = "Panel Analista";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0">Panel Analista</h1>
+    <span class="badge bg-warning text-dark">@Model.Count pendiente(s)</span>
+</div>
+
+@if (TempData["MensajeExito"] is string exito)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @exito
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+@if (TempData["MensajeError"] is string error)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @error
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+@if (Model.Any())
+{
+    <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle shadow-sm">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col">N.º</th>
+                    <th scope="col">Cliente</th>
+                    <th scope="col">Ingresos Mensuales</th>
+                    <th scope="col">Monto Solicitado</th>
+                    <th scope="col">Fecha de Solicitud</th>
+                    <th scope="col" class="text-end">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var solicitud in Model)
+                {
+                    <tr>
+                        <td>@solicitud.Id</td>
+                        <td>@(solicitud.Cliente?.UsuarioId ?? "—")</td>
+                        <td>@(solicitud.Cliente?.IngresosMensuales.ToString("C"))</td>
+                        <td>@solicitud.MontoSolicitado.ToString("C")</td>
+                        <td>@solicitud.FechaSolicitud.ToString("dd/MM/yyyy HH:mm")</td>
+                        <td class="text-end">
+                            <form asp-action="Evaluar" method="post" class="d-inline">
+                                <input type="hidden" name="id" value="@solicitud.Id" />
+                                <input type="hidden" name="estado" value="@EstadoSolicitud.Aprobado" />
+                                <button type="submit" class="btn btn-sm btn-success">Aprobar</button>
+                            </form>
+                            <button type="button"
+                                    class="btn btn-sm btn-danger"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#modalRechazo"
+                                    data-id="@solicitud.Id"
+                                    data-monto="@(solicitud.MontoSolicitado.ToString("C"))">
+                                Rechazar
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+else
+{
+    <div class="alert alert-info text-center py-5">
+        No hay solicitudes pendientes por evaluar.
+    </div>
+}
+
+<div class="modal fade" id="modalRechazo" tabindex="-1" aria-labelledby="modalRechazoLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form asp-action="Evaluar" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalRechazoLabel">Rechazar Solicitud</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="rechazoInfo" class="text-muted"></p>
+                    <input type="hidden" id="rechazoId" name="id" value="" />
+                    <input type="hidden" name="estado" value="@EstadoSolicitud.Rechazado" />
+                    <div class="mb-3">
+                        <label for="motivoRechazo" class="form-label">Motivo del rechazo</label>
+                        <textarea id="motivoRechazo" name="motivoRechazo" class="form-control" rows="3" required></textarea>
+                        <div class="form-text">Este motivo será visible para el cliente.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger">Confirmar Rechazo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.querySelectorAll('[data-bs-target="#modalRechazo"]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                document.getElementById('rechazoId').value = btn.dataset.id;
+                document.getElementById('rechazoInfo').textContent = 'Solicitud #' + btn.dataset.id + ' - ' + btn.dataset.monto;
+            });
+        });
+    </script>
+}
