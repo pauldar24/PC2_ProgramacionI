@@ -23,9 +23,10 @@ public static class DbSeeder
         }
 
         const string analistaEmail = "analista@creditos.com";
-        if (await userManager.FindByEmailAsync(analistaEmail) is null)
+        var analista = await userManager.FindByEmailAsync(analistaEmail);
+        if (analista is null)
         {
-            var analista = new IdentityUser
+            analista = new IdentityUser
             {
                 UserName = analistaEmail,
                 Email = analistaEmail,
@@ -43,7 +44,7 @@ public static class DbSeeder
         {
             var cliente1 = new Cliente
             {
-                UsuarioId = "seed-cliente-1",
+                UsuarioId = analista.Id,
                 IngresosMensuales = 3500m,
                 Activo = true
             };
@@ -75,6 +76,15 @@ public static class DbSeeder
                 });
 
             await context.SaveChangesAsync();
+        }
+        else
+        {
+            var seedCliente1 = await context.Clientes.FirstOrDefaultAsync(c => c.UsuarioId == "seed-cliente-1");
+            if (seedCliente1 is not null)
+            {
+                seedCliente1.UsuarioId = analista.Id;
+                await context.SaveChangesAsync();
+            }
         }
     }
 }
