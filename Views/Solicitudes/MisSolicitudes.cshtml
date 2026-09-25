@@ -1,4 +1,5 @@
 @model MisSolicitudesViewModel
+@inject Microsoft.Extensions.Configuration.IConfiguration Config
 @{
     ViewData["Title"] = "Mis Solicitudes";
 }
@@ -104,4 +105,67 @@ else if (ViewData.ModelState.IsValid)
     <div class="alert alert-info text-center py-5">
         No se encontraron solicitudes con los criterios indicados.
     </div>
+}
+
+@if (Model.ClienteId.HasValue && !string.IsNullOrWhiteSpace(Config["PieSocket:ClusterId"]) && !string.IsNullOrWhiteSpace(Config["PieSocket:ApiKey"]))
+{
+    var clusterId = Config["PieSocket:ClusterId"];
+    var apiKey = Config["PieSocket:ApiKey"];
+
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1080;">
+        <div id="notificacionToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header">
+                <strong class="me-auto">Solicitud de crédito</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Cerrar"></button>
+            </div>
+            <div class="toast-body" id="notificacionToastMensaje"></div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            const clusterId = '@clusterId';
+            const apiKey = '@apiKey';
+            const clienteId = '@Model.ClienteId';
+
+            const ws = new WebSocket('wss://' + clusterId + '.piesocket.com/v3/canal-cliente-' + clienteId + '?api_key=' + apiKey);
+
+            ws.onopen = function () {
+                console.log('Conectado al canal canal-cliente-' + clienteId);
+            };
+
+            ws.onmessage = function (event) {
+                let mensaje = event.data;
+
+                try {
+                    const parsed = JSON.parse(event.data);
+                    if (parsed && parsed.data) {
+                        mensaje = typeof parsed.data === 'string' ? parsed.data : JSON.stringify(parsed.data);
+                    } else if (parsed && parsed.message) {
+                        mensaje = parsed.message;
+                    }
+                } catch (e) { }
+
+                const toastEl = document.getElementById('notificacionToast');
+                const toastBody = document.getElementById('notificacionToastMensaje');
+
+                toastBody.textContent = mensaje;
+
+                const toast = window.bootstrap
+                    ? new bootstrap.Toast(toastEl, { autohide: false })
+                    : null;
+
+                if (toast) {
+                    toastEl.addEventListener('hidden.bs.toast', function () {
+                        location.reload();
+                    });
+                    toast.show();
+                }
+            };
+
+            ws.onerror = function (error) {
+                console.error('Error en el WebSocket de PieSocket:', error);
+            };
+        })();
+    </script>
 }

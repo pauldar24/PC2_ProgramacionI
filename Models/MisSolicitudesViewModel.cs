@@ -3,6 +3,7 @@ namespace PC2.Models;
 public class MisSolicitudesViewModel
 {
     public EstadoSolicitud? Estado { get; set; }
+    public int? ClienteId { get; set; }
     public decimal? MontoMin { get; set; }
     public decimal? MontoMax { get; set; }
     public DateTime? FechaInicio { get; set; }
