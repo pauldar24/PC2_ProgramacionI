@@ -3,7 +3,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PC2.Data;
 using PC2.Models;
+using RabbitMQ.Client;
 using System.Security.Claims;
+using System.Text;
+using System.Text.Json;
 
 namespace PC2.Controllers;
 
@@ -11,10 +14,17 @@ namespace PC2.Controllers;
 public class SolicitudesController : Controller
 {
     private readonly ApplicationDbContext _context;
+    private readonly IConfiguration _configuration;
+    private readonly ILogger<SolicitudesController> _logger;
 
-    public SolicitudesController(ApplicationDbContext context)
+    public SolicitudesController(
+        ApplicationDbContext context,
+        IConfiguration configuration,
+        ILogger<SolicitudesController> logger)
     {
         _context = context;
+        _configuration = configuration;
+        _logger = logger;
     }
 
     private string? UsuarioActualId => User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -38,27 +48,33 @@ public class SolicitudesController : Controller
 
         if (cliente is null)
         {
-            ModelState.AddModelError(string.Empty, "No se encontró un cliente asociado a su cuenta.");
+            cliente = new Cliente
+            {
+                UsuarioId = UsuarioActualId!,
+                IngresosMensuales = 3000m,
+                Activo = true
+            };
+
+            _context.Clientes.Add(cliente);
+            await _context.SaveChangesAsync();
         }
-        else
+
+        model.IngresosMensuales = cliente.IngresosMensuales;
+
+        if (!cliente.Activo)
         {
-            model.IngresosMensuales = cliente.IngresosMensuales;
+            ModelState.AddModelError(string.Empty, "Su cuenta de cliente está inactiva y no puede registrar solicitudes.");
+        }
 
-            if (!cliente.Activo)
-            {
-                ModelState.AddModelError(string.Empty, "Su cuenta de cliente está inactiva y no puede registrar solicitudes.");
-            }
+        if (await _context.SolicitudesCredito.AnyAsync(s => s.ClienteId == cliente.Id && s.Estado == EstadoSolicitud.Pendiente))
+        {
+            ModelState.AddModelError(string.Empty, "Ya tiene una solicitud en estado Pendiente. Solo puede tener una solicitud activa a la vez.");
+        }
 
-            if (await _context.SolicitudesCredito.AnyAsync(s => s.ClienteId == cliente.Id && s.Estado == EstadoSolicitud.Pendiente))
-            {
-                ModelState.AddModelError(string.Empty, "Ya tiene una solicitud en estado Pendiente. Solo puede tener una solicitud activa a la vez.");
-            }
-
-            if (model.MontoSolicitado > cliente.IngresosMensuales * 10)
-            {
-                ModelState.AddModelError(nameof(model.MontoSolicitado),
-                    $"El monto solicitado no puede superar 10 veces sus ingresos mensuales ({cliente.IngresosMensuales * 10:C}).");
-            }
+        if (model.MontoSolicitado > cliente.IngresosMensuales * 10)
+        {
+            ModelState.AddModelError(nameof(model.MontoSolicitado),
+                $"El monto solicitado no puede superar 10 veces sus ingresos mensuales ({cliente.IngresosMensuales * 10:C}).");
         }
 
         if (!ModelState.IsValid)
@@ -77,8 +93,59 @@ public class SolicitudesController : Controller
         _context.SolicitudesCredito.Add(solicitud);
         await _context.SaveChangesAsync();
 
+        await PublicarNotificacionRabbitAsync(solicitud);
+
         TempData["MensajeExito"] = "Su solicitud de crédito fue registrada correctamente y quedó en estado Pendiente.";
         return RedirectToAction(nameof(MisSolicitudes));
+    }
+
+    private async Task PublicarNotificacionRabbitAsync(SolicitudCredito solicitud)
+    {
+        var uri = _configuration["RabbitMQ:Uri"];
+        if (string.IsNullOrWhiteSpace(uri))
+        {
+            _logger.LogWarning("Configuración de RabbitMQ incompleta; no se publicó el mensaje.");
+            return;
+        }
+
+        try
+        {
+            var factory = new ConnectionFactory
+            {
+                Uri = new Uri(uri)
+            };
+
+            await using var connection = await factory.CreateConnectionAsync();
+            await using var channel = await connection.CreateChannelAsync();
+
+            await channel.QueueDeclareAsync(
+                queue: "cola_notificaciones",
+                durable: true,
+                exclusive: false,
+                autoDelete: false,
+                arguments: null);
+
+            var payload = new
+            {
+                id = solicitud.Id,
+                montoSolicitado = solicitud.MontoSolicitado,
+                mensaje = "Nueva solicitud registrada"
+            };
+
+            var body = JsonSerializer.SerializeToUtf8Bytes(payload);
+
+            await channel.BasicPublishAsync(
+                exchange: string.Empty,
+                routingKey: "cola_notificaciones",
+                mandatory: false,
+                body: body);
+
+            _logger.LogInformation("Mensaje publicado en la cola cola_notificaciones para la solicitud {SolicitudId}.", solicitud.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al publicar la solicitud {SolicitudId} en RabbitMQ.", solicitud.Id);
+        }
     }
 
     private async Task<decimal?> ObtenerIngresosMensualesAsync()
