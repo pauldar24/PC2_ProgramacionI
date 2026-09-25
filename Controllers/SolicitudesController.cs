@@ -20,6 +20,76 @@ public class SolicitudesController : Controller
     private string? UsuarioActualId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
     [HttpGet]
+    public async Task<IActionResult> Create()
+    {
+        var viewModel = new CrearSolicitudViewModel
+        {
+            IngresosMensuales = await ObtenerIngresosMensualesAsync()
+        };
+
+        return View(viewModel);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Create(CrearSolicitudViewModel model)
+    {
+        var cliente = await _context.Clientes.FirstOrDefaultAsync(c => c.UsuarioId == UsuarioActualId);
+
+        if (cliente is null)
+        {
+            ModelState.AddModelError(string.Empty, "No se encontró un cliente asociado a su cuenta.");
+        }
+        else
+        {
+            model.IngresosMensuales = cliente.IngresosMensuales;
+
+            if (!cliente.Activo)
+            {
+                ModelState.AddModelError(string.Empty, "Su cuenta de cliente está inactiva y no puede registrar solicitudes.");
+            }
+
+            if (await _context.SolicitudesCredito.AnyAsync(s => s.ClienteId == cliente.Id && s.Estado == EstadoSolicitud.Pendiente))
+            {
+                ModelState.AddModelError(string.Empty, "Ya tiene una solicitud en estado Pendiente. Solo puede tener una solicitud activa a la vez.");
+            }
+
+            if (model.MontoSolicitado > cliente.IngresosMensuales * 10)
+            {
+                ModelState.AddModelError(nameof(model.MontoSolicitado),
+                    $"El monto solicitado no puede superar 10 veces sus ingresos mensuales ({cliente.IngresosMensuales * 10:C}).");
+            }
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return View(model);
+        }
+
+        var solicitud = new SolicitudCredito
+        {
+            ClienteId = cliente.Id,
+            MontoSolicitado = model.MontoSolicitado,
+            FechaSolicitud = DateTime.UtcNow,
+            Estado = EstadoSolicitud.Pendiente
+        };
+
+        _context.SolicitudesCredito.Add(solicitud);
+        await _context.SaveChangesAsync();
+
+        TempData["MensajeExito"] = "Su solicitud de crédito fue registrada correctamente y quedó en estado Pendiente.";
+        return RedirectToAction(nameof(MisSolicitudes));
+    }
+
+    private async Task<decimal?> ObtenerIngresosMensualesAsync()
+    {
+        var cliente = await _context.Clientes.AsNoTracking()
+            .FirstOrDefaultAsync(c => c.UsuarioId == UsuarioActualId);
+
+        return cliente?.IngresosMensuales;
+    }
+
+    [HttpGet]
     public async Task<IActionResult> MisSolicitudes(
         EstadoSolicitud? estado,
         decimal? montoMin,
